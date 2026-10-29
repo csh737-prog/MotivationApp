@@ -371,11 +371,12 @@ if submitted:
                     )
                     st.session_state["message_mode"] = "BASIC"
 
-            except Exception:
-                st.error(
-                    "AI 연결에 실패했다. API 키와 인터넷 연결을 확인해라."
-                )
-
+            
+            except Exception as e:
+                st.error("AI 요청에 실패했어.")
+                st.write("오류 종류:", type(e).__name__)
+                st.code(str(e))
+            
                 st.session_state["motivation_message"] = (
                     make_fallback_message(situation, goal)
                 )
