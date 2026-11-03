@@ -92,116 +92,81 @@ QUOTES = [
 # 4. AI 동기부여 생성 함수
 # ==========================================
 
+
 def generate_motivation(situation, goal, tone):
 
     api_key = get_api_key()
 
     if not api_key:
-        raise ValueError(
-            "Groq API 키가 없어. "
-            "Streamlit Secrets에 GROQ_API_KEY를 등록해 줘."
-        )
+        raise ValueError("Groq API 키를 찾을 수 없어.")
 
     client = Groq(
         api_key=api_key,
         timeout=30.0,
-        max_retries=1
+        max_retries=2
     )
 
     system_prompt = """
-너는 CHAD MODE라는 동기부여 서비스의 AI다.
+너는 CHAD MODE의 전문 동기부여 AI다.
 
-너의 역할은 사용자의 상황을 분석하고
-현실적이면서도 강렬한 동기부여 메시지를 만드는 것이다.
+사용자의 상황을 분석하고 개인 맞춤형 메시지를 작성한다.
 
-반드시 다음 규칙을 지켜라.
-
-1. 반드시 한국어로 작성한다.
-2. 정확히 4줄로 작성한다.
-3. 제목이나 번호는 붙이지 않는다.
-4. 사용자의 상황과 목표를 구체적으로 반영한다.
-5. 뻔한 위로나 상투적인 문장은 피한다.
-6. 매번 새로운 비유와 표현을 사용한다.
-7. 짧고 강렬한 문장으로 작성한다.
-8. 무조건적인 비난이나 모욕은 하지 않는다.
-9. 마지막 줄은 즉시 행동하도록 촉구한다.
-10. 사용자가 입력한 내용에 따라 메시지의 방향을 다르게 구성한다.
-
-사용자의 상황을 제대로 이해한 뒤 작성하라.
+규칙:
+- 반드시 한국어로 작성한다.
+- 정확히 4개의 짧은 문장을 작성한다.
+- 사용자의 상황과 목표를 구체적으로 반영한다.
+- 뻔한 위로와 반복적인 표현을 피한다.
+- 강렬하고 직설적인 표현을 사용한다.
+- 모욕하거나 비하하지 않는다.
+- 제목이나 번호 없이 메시지만 출력한다.
+- 마지막 문장은 행동을 촉구한다.
 """
 
     user_prompt = f"""
-[사용자의 현재 상황]
-{situation}
+사용자의 상황: {situation}
+사용자의 목표: {goal}
+원하는 말투: {tone}
 
-[사용자가 이루고 싶은 목표]
-{goal}
-
-[원하는 말투]
-{tone}
-
-위 내용을 분석하여 사용자를 위한
-개인 맞춤형 동기부여 메시지를 정확히 4줄 작성해라.
-
-이전의 흔한 동기부여 문구를 반복하지 말고
-이번 상황에 어울리는 독창적인 표현을 사용해라.
+위 내용을 바탕으로 새로운 동기부여 메시지 4줄을 작성해라.
 """
 
-    # 서버 일시 오류에 대비한 재시도
     for attempt in range(3):
 
-        try:
-            response = client.chat.completions.create(
-                model="openai/gpt-oss-20b",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": user_prompt
-                    }
-                ],
-                temperature=1.0,
-                max_completion_tokens=300
-            )
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt
+                }
+            ],
+            temperature=1.0,
+            max_completion_tokens=500
+        )
 
-            message = (
-                response.choices[0].message.content or ""
-            ).strip()
+        choice = response.choices[0]
 
-            if not message:
-                raise ValueError(
-                    "AI가 빈 메시지를 반환했어."
-                )
+        # 응답 내용 확인
+        message = choice.message.content
 
-            return message
+        # 내용이 비어 있으면 다른 응답 필드 확인
+        if isinstance(message, str) and message.strip():
+            return message.strip()
 
-        except Exception as e:
+        # 비어 있는 응답의 원인을 기록
+        finish_reason = choice.finish_reason
 
-            error_message = str(e)
+        if attempt < 2:
+            time.sleep(1)
 
-            # 일시적인 서버 오류만 재시도
-            temporary_errors = [
-                "500",
-                "502",
-                "503",
-                "504",
-                "Internal Server Error",
-                "Service Unavailable"
-            ]
-
-            is_temporary = any(
-                error in error_message
-                for error in temporary_errors
-            )
-
-            if is_temporary and attempt < 2:
-                time.sleep(2 ** (attempt + 1))
-                continue
-
-            raise e
+    raise ValueError(
+        f"AI가 메시지를 생성하지 못했어. "
+        f"응답 종료 사유: {finish_reason}"
+    )
 
 
 # ==========================================
